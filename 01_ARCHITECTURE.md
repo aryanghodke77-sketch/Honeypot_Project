@@ -221,11 +221,12 @@ public:
 class IAuthProvider {
 public:
     virtual ~IAuthProvider() = default;
-    // Authenticate a device: takes observed profile and enrolled identity
+    // Authenticate a device: takes observed profile and enrolled identity (if any)
     // Returns authentication result; does NOT perform registry lookup
+    // A null DeviceIdentity means the device is unknown/not enrolled
     virtual AuthenticationResult authenticate(
         const DeviceProfile& observed,
-        const DeviceIdentity& enrolled
+        const DeviceIdentity* enrolled  // nullptr for unknown devices
     ) = 0;
 };
 
@@ -297,7 +298,11 @@ Device Discovery ──► DeviceProfile
       │
       ▼
 Enrollment Registry Lookup:
-      ├─ Unknown MAC ──► QUARANTINED (no enrolled identity found)
+      ├─ Unknown MAC ──► QUARANTINED (no enrolled identity)
+      │
+      ▼
+  Known MAC
+      │
       ▼
 Candidate DeviceIdentity
       │
@@ -308,13 +313,13 @@ Authentication Flow
    └─ PostureIdentity   (optional, architecture-only for now)
       │
       ▼
-IAuthProvider::authenticate(DeviceProfile, DeviceIdentity)
+IAuthProvider::authenticate(DeviceProfile, DeviceIdentity|null)
       │
       ▼
 AuthenticationResult = {success, mechanism, signature, failure_reason}
       │
       ▼
-TrustPolicy.evaluate(DeviceProfile, AuthenticationResult, DeviceIdentity)
+TrustPolicy.evaluate(DeviceProfile, AuthenticationResult, DeviceIdentity|null)
       │
       ├─ NON_TRUSTED ──► DeviceState::QUARANTINED
       │                  (policy: unknown device, auth failed, revoked, etc.)
@@ -328,19 +333,19 @@ TrustPolicy.evaluate(DeviceProfile, AuthenticationResult, DeviceIdentity)
 ```cpp
 TrustDecision TrustPolicy::evaluate(const DeviceProfile& observed,
                                     const AuthenticationResult& auth,
-                                    const DeviceIdentity& enrolled) {
+                                    const DeviceIdentity* enrolled) {
     // Unknown device (no enrollment record)
-    if (enrolled.device_id.empty()) 
+    if (enrolled == nullptr)
         return {TrustLevel::NON_TRUSTED, "unknown device - not enrolled", now()};
-    
+
     // Failed authentication
-    if (!auth.success)  
+    if (!auth.success)
         return {TrustLevel::NON_TRUSTED, auth.failure_reason.value_or("auth failed"), now()};
-    
+
     // Revoked identity
-    if (enrolled.enrolled_at < revocation_cutoff)
+    if (enrolled->enrolled_at < revocation_cutoff)
         return {TrustLevel::NON_TRUSTED, "identity revoked", now()};
-    
+
     // Successfully authenticated
     return {TrustLevel::TRUSTED, "cryptographically verified", now()};
 }
