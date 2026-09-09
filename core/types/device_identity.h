@@ -3,6 +3,7 @@
 
 #include <string>
 #include <chrono>
+#include <optional>
 
 // Enrolled logical identity for a device
 // This represents the identity established during device enrollment/provisioning

@@ -1,0 +1,12 @@
+# Build artifacts
+build/
+
+# Compiled binaries
+*.exe
+
+# Editor/IDE local configuration (machine-specific paths)
+.vscode/
+
+# Internal workflow docs (not part of the repository)
+02_WORKFLOW.md
+03_AGENT_KICKOFF_PROMPT.md
