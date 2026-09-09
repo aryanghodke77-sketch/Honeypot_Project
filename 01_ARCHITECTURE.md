@@ -221,13 +221,26 @@ public:
 class IAuthProvider {
 public:
     virtual ~IAuthProvider() = default;
-    // Authenticate a device: takes observed profile and enrolled identity (if any)
+    // Authenticate a device via challenge-response: takes the observed profile,
+    // the enrolled identity (if any), the challenge issued to the device, and
+    // the device's signature over that challenge (proof of key possession).
     // Returns authentication result; does NOT perform registry lookup
     // A null DeviceIdentity means the device is unknown/not enrolled
     virtual AuthenticationResult authenticate(
         const DeviceProfile& observed,
-        const DeviceIdentity* enrolled  // nullptr for unknown devices
+        const DeviceIdentity* enrolled,  // nullptr for unknown devices
+        const std::string& challenge,
+        const std::string& signature
     ) = 0;
+};
+
+// interfaces/i_challenge_signer.h
+class IChallengeSigner {
+public:
+    virtual ~IChallengeSigner() = default;
+    // Device-side proof of key possession: signs the challenge with the
+    // device's private key. The verifier never sees the private key.
+    virtual std::string sign(const std::string& challenge) const = 0;
 };
 
 // interfaces/i_logger.h
@@ -250,7 +263,8 @@ If you ever find yourself writing `#ifdef ESP32` inside `core/`, `phase1/`, or `
 |-----------|-------------------------|--------------------------------|
 | `IEthernetSource` | `SimulatedEthernet` - replays `PacketEvent` sequences from scenarios | `ESP32EthernetSource` - reads actual Ethernet frames |
 | `IRelay` | `SimulatedRelay` - logs allow/block actions | Real switch/traffic controller hardware |
-| `IAuthProvider` | `SimulatedAuthProvider` - checks credentials in memory | External authentication server (RADIUS, cert authority) |
+| `IAuthProvider` | `SimulatedAuthProvider` - verifies HMAC-SHA256 challenge-response signatures | External authentication server (RADIUS, cert authority) |
+| `IChallengeSigner` | `SimulatedDevice` - signs challenges with an in-memory key | Secure element / device firmware |
 | `ILogger` | `ConsoleLogger` - prints to stdout | Structured logging to flash/SD card |
 
 ## 6. Enrollment and Authentication Lifecycle
@@ -275,15 +289,16 @@ Device later connects → Authentication Server uses enrollment record
 
 **Certificate/Public-Key Authentication** (strong):
 - Device proves possession of private key via challenge-response
-- Server generates random challenge, device signs with private key
-- Server verifies signature using registered public key
+- Server issues a challenge, device signs it with its private key (`IChallengeSigner`)
+- Server verifies the signature against the registered key (`DeviceIdentity::public_key_jwk`) via `IAuthProvider`
+- The simulator implements this with real HMAC-SHA256 (RFC 2104) over simulated key material; mechanism is `"hmac_challenge_response"`
 - MAC allowlisting is a weaker, non-cryptographic mechanism that should not be conflated with certificate authentication
 
 **MAC Allowlisting** (weaker):
 - Device is trusted because its MAC is on an allow list
 - NO cryptographic proof of possession
 - Easily spoofed
-- Documented via `DeviceIdentity::allowlisted` and `AuthenticationResult::mechanism == "mac_allowlist"`
+- Retained as a documented data-model concept (`DeviceIdentity::allowlisted`), but NOT accepted by `SimulatedAuthProvider` - the challenge-response path is the only authentication mechanism
 
 ## 7. Phase 1 — Device Verification
 
@@ -312,8 +327,7 @@ Authentication Flow
    ├─ CryptoIdentity    (certificate verification via IAuthProvider)
    └─ PostureIdentity   (optional, architecture-only for now)
       │
-      ▼
-IAuthProvider::authenticate(DeviceProfile, DeviceIdentity|null)
+      ▼      IAuthProvider::authenticate(DeviceProfile, DeviceIdentity|null, challenge, signature)
       │
       ▼
 AuthenticationResult = {success, mechanism, signature, failure_reason}

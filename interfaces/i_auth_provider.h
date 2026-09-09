@@ -1,6 +1,7 @@
 // interfaces/i_auth_provider.h
 #pragma once
 
+#include <string>
 #include "../core/types/device_profile.h"
 #include "../core/types/device_identity.h"
 #include "../core/types/authentication_result.h"
@@ -13,13 +14,16 @@ class IAuthProvider {
 public:
     virtual ~IAuthProvider() = default;
 
-    // Authenticate a device
-    // Parameters:
-    //   observed - network-discovered device data
-    //   enrolled - enrolled identity if found, nullptr if none
-    // Returns: authentication result with success/failure and mechanism
+    // Authenticate a device via challenge-response:
+    //   observed   - network-discovered device data
+    //   enrolled   - enrolled identity if found, nullptr if none
+    //   challenge  - challenge issued to the device (nonce)
+    //   signature  - the device's signature over the challenge, proving
+    //                possession of the enrolled private key
+    // Returns: authentication result with success/failure and mechanism.
     virtual AuthenticationResult authenticate(
         const DeviceProfile& observed,
-        const DeviceIdentity* enrolled  // nullptr for unknown/unenrolled devices
-    ) = 0;
+        const DeviceIdentity* enrolled,  // nullptr for unknown/unenrolled devices
+        const std::string& challenge,
+        const std::string& signature) = 0;
 };
