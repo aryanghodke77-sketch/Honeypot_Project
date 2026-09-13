@@ -25,8 +25,15 @@ cannot compile the code.
 Full-chain demo:
 
 ```
-C:\mingw64\bin\g++.exe -std=c++17 -I. main_sim.cpp simulation\*.cpp core\identity\enrollment_registry.cpp core\policy\trust_policy.cpp core\state\device_state_machine.cpp core\threat\threat_engine.cpp phase1\verification_workflow.cpp phase2\*.cpp -o main_sim.exe
+C:\mingw64\bin\g++.exe -std=c++17 -I. main_sim.cpp simulation\*.cpp core\crypto\sha256.cpp core\identity\enrollment_registry.cpp core\policy\trust_policy.cpp core\state\device_state_machine.cpp core\threat\threat_engine.cpp phase1\verification_workflow.cpp phase2\*.cpp -o main_sim.exe
 main_sim.exe
+```
+
+Full-chain assertions:
+
+```
+C:\mingw64\bin\g++.exe -std=c++17 -I. tests\end_to_end\full_chain_test.cpp simulation\*.cpp core\crypto\sha256.cpp core\identity\enrollment_registry.cpp core\policy\trust_policy.cpp core\state\device_state_machine.cpp core\threat\threat_engine.cpp phase1\verification_workflow.cpp phase2\*.cpp -o full_chain_test.exe
+full_chain_test.exe
 ```
 
 Unit tests (12 checks):
